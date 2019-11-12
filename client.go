@@ -25,7 +25,6 @@ package factom
 import (
 	"context"
 	"fmt"
-
 	"github.com/AdamSLevy/jsonrpc2/v12"
 )
 
