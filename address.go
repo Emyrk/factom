@@ -24,10 +24,14 @@ package factom
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha256"
-
 	"crypto/ed25519"
+	"encoding/hex"
+	"fmt"
+
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // Notes: This file contains all types, interfaces, and methods related to
@@ -44,6 +48,12 @@ type FAAddress [sha256.Size]byte
 
 // FsAddress is the secret key to a FAAddress.
 type FsAddress [sha256.Size]byte
+
+// EthSecret is the secret key to a FAAddress
+// It uses rcd type 0x0e with ecdsa signing.
+// TODO: To get the bitsize, you need to do `priv.Params().Bitsize`.
+//		It is not in a constant.
+type EthSecret [32]byte
 
 // ECAddress is a Public Entry Credit Address.
 type ECAddress [sha256.Size]byte
@@ -154,6 +164,12 @@ func (adr FsAddress) String() string {
 
 // String encodes adr into its human readable form: base58check with
 // adr.PrefixBytes().
+func (adr EthSecret) String() string {
+	return "0x" + hex.EncodeToString(adr[:])
+}
+
+// String encodes adr into its human readable form: base58check with
+// adr.PrefixBytes().
 func (adr ECAddress) String() string {
 	return adr.payload().StringWithPrefix(adr.PrefixBytes())
 }
@@ -175,6 +191,11 @@ func (adr FsAddress) MarshalText() ([]byte, error) {
 }
 
 // MarshalText encodes adr as a string using adr.String().
+func (adr EthSecret) MarshalText() ([]byte, error) {
+	return []byte(adr.String()), nil
+}
+
+// MarshalText encodes adr as a string using adr.String().
 func (adr ECAddress) MarshalText() ([]byte, error) {
 	return adr.payload().MarshalTextWithPrefix(adr.PrefixBytes())
 }
@@ -189,6 +210,12 @@ const adrStrLen = 52
 // GenerateFsAddress generates a secure random private Factoid address using
 // crypto/rand.Random as the source of randomness.
 func GenerateFsAddress() (FsAddress, error) {
+	return generatePrivKey()
+}
+
+// GenerateEthSecret generates a secure random private Etheruem address using
+// crypto/rand.Random as the source of randomness.
+func GenerateEthSecret() (EthSecret, error) {
 	return generatePrivKey()
 }
 
@@ -218,6 +245,12 @@ func NewFsAddress(adrStr string) (adr FsAddress, err error) {
 	return
 }
 
+// NewEthSecret attempts to parse adrStr into a new EthSecret.
+func NewEthSecret(adrStr string) (adr EthSecret, err error) {
+	err = adr.Set(adrStr)
+	return
+}
+
 // NewECAddress attempts to parse adrStr into a new ECAddress.
 func NewECAddress(adrStr string) (adr ECAddress, err error) {
 	err = adr.Set(adrStr)
@@ -238,6 +271,25 @@ func (adr *FAAddress) Set(adrStr string) error {
 // Set attempts to parse adrStr into adr.
 func (adr *FsAddress) Set(adrStr string) error {
 	return adr.payload().SetWithPrefix(adrStr, adr.PrefixString())
+}
+
+// Set attempts to parse adrStr into adr.
+// adrStr is in format 0x[64 character hex]
+func (e *EthSecret) Set(adrStr string) error {
+	// TODO: Payload code expects base 58. So this address type cannot
+	//		use those generic functions
+	if !has0xPrefix(adrStr) {
+		return fmt.Errorf("exp 0x prefix")
+	}
+	if len(adrStr) != 66 { // 66 is 64 hex + 2 character prefix
+		return fmt.Errorf("exp 64 hex characters")
+	}
+	secret, err := hex.DecodeString(adrStr[2:])
+	if err != nil {
+		return err
+	}
+	copy(e[:], secret)
+	return nil
 }
 
 // Set attempts to parse adrStr into adr.
@@ -262,6 +314,12 @@ func (adr *FsAddress) UnmarshalText(text []byte) error {
 	return adr.payload().UnmarshalTextWithPrefix(text, adr.PrefixString())
 }
 
+// UnmarshalText decodes a string with a human readable secret Factoid address
+// into adr.
+func (adr *EthSecret) UnmarshalText(text []byte) error {
+	return adr.Set(string(text))
+}
+
 // UnmarshalText decodes a string with a human readable public Entry Credit
 // address into adr.
 func (adr *ECAddress) UnmarshalText(text []byte) error {
@@ -279,6 +337,11 @@ func (adr FAAddress) GetFsAddress(ctx context.Context, c *Client) (FsAddress, er
 	var privAdr FsAddress
 	err := c.getAddress(ctx, adr, &privAdr)
 	return privAdr, err
+}
+
+func (adr EthSecret) GetEthSecret(ctx context.Context, c *Client) (EthSecret, error) {
+	panic("Not yet implemented") // TODO: Implement
+	return EthSecret{}, nil
 }
 
 // GetEsAddress queries factom-walletd for the EsAddress corresponding to adr.
@@ -331,6 +394,11 @@ func (adr FsAddress) Save(ctx context.Context, c *Client) error {
 	return c.SavePrivateAddresses(ctx, adr.String())
 }
 
+func (adr EthSecret) Save(ctx context.Context, c *Client) error {
+	panic("Not yet implemented") // TODO: Implement
+	return nil
+}
+
 // Save adr with factom-walletd.
 func (adr EsAddress) Save(ctx context.Context, c *Client) error {
 	return c.SavePrivateAddresses(ctx, adr.String())
@@ -356,6 +424,11 @@ func (adr FAAddress) GetBalance(ctx context.Context, c *Client) (uint64, error) 
 
 // GetBalance queries factomd for the Factoid Balance for adr.
 func (adr FsAddress) GetBalance(ctx context.Context, c *Client) (uint64, error) {
+	return adr.FAAddress().GetBalance(ctx, c)
+}
+
+// GetBalance queries factomd for the Factoid Balance for adr.
+func (adr EthSecret) GetBalance(ctx context.Context, c *Client) (uint64, error) {
 	return adr.FAAddress().GetBalance(ctx, c)
 }
 
@@ -391,6 +464,12 @@ func (adr FsAddress) Remove(ctx context.Context, c *Client) error {
 }
 
 // Remove adr from factom-walletd. WARNING: THIS IS DESTRUCTIVE.
+func (adr EthSecret) Remove(ctx context.Context, c *Client) error {
+	panic("Not yet implemented") // TODO: Implement
+	return nil
+}
+
+// Remove adr from factom-walletd. WARNING: THIS IS DESTRUCTIVE.
 func (adr ECAddress) Remove(ctx context.Context, c *Client) error {
 	return c.removeAddress(ctx, adr.String())
 }
@@ -414,6 +493,11 @@ func (adr FsAddress) FAAddress() FAAddress {
 	return sha256d(adr.RCD())
 }
 
+// FAAddress returns the FAAddress corresponding to adr.
+func (e EthSecret) FAAddress() FAAddress {
+	return sha256d(e.RCD())
+}
+
 // ECAddress returns the ECAddress corresponding to adr.
 func (adr EsAddress) ECAddress() (ec ECAddress) {
 	copy(ec[:], adr.PublicKey())
@@ -431,9 +515,22 @@ func (adr FsAddress) RCD() []byte {
 	return append([]byte{RCDType01}, adr.PublicKey()[:]...)
 }
 
+func (s EthSecret) RCD() []byte {
+	return append([]byte{RCDType0e}, s.PublicKeyBytes()...)
+}
+
 // Sign the msg.
 func (adr FsAddress) Sign(msg []byte) []byte {
 	return ed25519.Sign(adr.PrivateKey(), msg)
+}
+
+// Sign the msg.
+func (adr EthSecret) Sign(msg []byte) []byte {
+	sig, err := crypto.Sign(msg, adr.PrivateKey())
+	if err != nil {
+		return nil
+	}
+	return sig
 }
 
 // PublicKey returns the ed25519.PublicKey for adr.
@@ -451,12 +548,50 @@ func (adr FsAddress) PublicKey() ed25519.PublicKey {
 	return adr.PrivateKey().Public().(ed25519.PublicKey)
 }
 
+func (s EthSecret) PublicKey() ecdsa.PublicKey {
+	secret := s.PrivateKey()
+	if secret == nil {
+		return ecdsa.PublicKey{}
+	}
+	return secret.PublicKey
+}
+
+// PublicKeyBytes returns the byte representation of the public key
+func (s EthSecret) PublicKeyBytes() []byte {
+	pub := s.PublicKey()
+	bytes := crypto.FromECDSAPub(&pub)
+	// Strip off the 0x04 prefix to indicate an uncompressed key.
+	// You can find the prefix list here:
+	// https://www.oreilly.com/library/view/mastering-ethereum/9781491971932/ch04.html
+	return bytes[1:]
+}
+
 // PrivateKey returns the ed25519.PrivateKey for adr.
 func (adr FsAddress) PrivateKey() ed25519.PrivateKey {
 	return ed25519.NewKeyFromSeed(adr[:])
 }
 
+func (s EthSecret) PrivateKey() *ecdsa.PrivateKey {
+	secret, err := crypto.ToECDSA(s[:])
+	if err != nil {
+		return nil
+	}
+	return secret
+}
+
 // PrivateKey returns the ed25519.PrivateKey for adr.
 func (adr EsAddress) PrivateKey() ed25519.PrivateKey {
 	return ed25519.NewKeyFromSeed(adr[:])
+}
+
+// Extra EthSecret functions
+
+// EthAddress returns the linked eth address
+func (adr EthSecret) EthAddress() string {
+	return crypto.PubkeyToAddress(adr.PublicKey()).String()
+}
+
+// has0xPrefix validates str begins with '0x' or '0X'.
+func has0xPrefix(str string) bool {
+	return len(str) >= 2 && str[0] == '0' && (str[1] == 'x' || str[1] == 'X')
 }

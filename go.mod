@@ -9,6 +9,7 @@ require (
 	github.com/AdamSLevy/retry v0.0.0-20191017184328-cce921f261f4
 	github.com/Factom-Asset-Tokens/base58 v0.0.0-20181227014902-61655c4dd885
 	github.com/kr/pretty v0.1.0 // indirect
+	github.com/ethereum/go-ethereum v1.9.7
 	github.com/stretchr/testify v1.4.0
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
