@@ -24,8 +24,10 @@ package factom
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -258,4 +260,30 @@ func TestAddress(t *testing.T) {
 		err := es.Remove(nil, c)
 		assert.NoError(t, err)
 	})
+}
+
+func TestNewEthSecret(t *testing.T) {
+	// Eth Vector from
+	// https://www.oreilly.com/library/view/mastering-ethereum/9781491971932/ch04.html
+
+	secret := "0xf8f8a2f43c8376ccb0871305060d7b27b0554d2cc72bccf41b2705608452f315"
+	public := "0x6e145ccef1033dea239875dd00dfb4fee6e3348b84985c92f103444683bae07b83b5c38e5e2b0" +
+		"c8529d7fa3f64d46daa1ece2d9ac14cab9477d042c84c32ccd0"
+	ethAddress := "0x001d3f1ef827552ae1114027bd3ecf1f086ba0f9"
+	faAddress := "FA2M6ddTAgewAiU7Cm5T6wffXsteuqrYkDAtUtbBjcurf3LKH9Eo"
+
+	assert := assert.New(t)
+
+	addr, err := NewEthSecret(secret)
+	assert.NoError(err)
+
+	// Check eth address
+	assert.True(strings.EqualFold(addr.EthAddress(), ethAddress))
+
+	// Check the public key
+	exp, _ := hex.DecodeString(public[2:])
+	assert.Equal(exp, addr.PublicKeyBytes())
+
+	// Check the FA address
+	assert.Equal(faAddress, addr.FAAddress().String())
 }
