@@ -58,6 +58,8 @@ const (
 	RCDType01Size = ed25519.PublicKeySize + 1
 	// SignatureSize is the size of the ed25519 signatures.
 	RCDType01SigSize = ed25519.SignatureSize
+
+	RCDType0e byte = 0x0e
 )
 
 func ValidateRCD01(rcd []byte, sig []byte, msg []byte) (Bytes32, error) {
