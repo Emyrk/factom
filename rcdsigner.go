@@ -25,6 +25,8 @@ package factom
 import (
 	"crypto/ed25519"
 	"fmt"
+
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // RCDSigner is the interface implemented by types that can generate Redeem
@@ -45,6 +47,8 @@ func ValidateRCD(rcd, sig, msg []byte) (Bytes32, error) {
 	switch rcd[0] {
 	case RCDType01:
 		validateRCD = ValidateRCD01
+	case RCDType0e:
+		validateRCD = ValidateRCD0e
 	default:
 		return Bytes32{}, fmt.Errorf("unsupported RCD")
 	}
@@ -59,7 +63,11 @@ const (
 	// SignatureSize is the size of the ed25519 signatures.
 	RCDType01SigSize = ed25519.SignatureSize
 
-	RCDType0e byte = 0x0e
+	RCDType0e     byte = 0x0e
+	RCDType0eSize      = 64 + 1 // Excluding uncompressed 0x04 prefix
+	// The recover byte allows the public key to be recovered from the
+	// signature + msg.
+	RCDType0eSigSize = 65 // 64 byte sig + recovery byte
 )
 
 func ValidateRCD01(rcd []byte, sig []byte, msg []byte) (Bytes32, error) {
@@ -75,6 +83,26 @@ func ValidateRCD01(rcd []byte, sig []byte, msg []byte) (Bytes32, error) {
 
 	pubKey := []byte(rcd[1:]) // Omit RCD Type byte
 	if !ed25519.Verify(pubKey, msg, sig) {
+		return Bytes32{}, fmt.Errorf("invalid signature")
+	}
+
+	return sha256d(rcd), nil
+}
+
+func ValidateRCD0e(rcd []byte, sig []byte, msg []byte) (Bytes32, error) {
+	if len(rcd) != RCDType0eSize {
+		return Bytes32{}, fmt.Errorf("invalid RCD size")
+	}
+	if rcd[0] != RCDType0e {
+		return Bytes32{}, fmt.Errorf("invalid RCD type")
+	}
+	if len(sig) != RCDType0eSigSize {
+		return Bytes32{}, fmt.Errorf("invalid signature size")
+	}
+
+	pubKey := []byte(rcd[1:])                           // Omit RCD Type byte
+	pubKey = append([]byte{0x04}, pubKey...)            // Uncompressed prefix
+	if !crypto.VerifySignature(pubKey, msg, sig[:64]) { // Ignore recovery byte
 		return Bytes32{}, fmt.Errorf("invalid signature")
 	}
 
