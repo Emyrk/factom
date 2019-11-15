@@ -82,8 +82,16 @@ func TestValidateRCD0eVectors(t *testing.T) {
 	}
 }
 
+// generateVector prints out all the fields needed to check an implementation.
 func generateVector() {
-
+	s, _ := GenerateEthSecret()
+	fmt.Printf("%20s: %s\n", "Private Key", s)
+	fmt.Printf("%20s: 0x%x\n", "Public Key", s.PublicKeyBytes())
+	fmt.Printf("%20s: %s\n", "FAAddress", s.FAAddress())
+	fmt.Printf("%20s: %s\n", "EthAddress", s.EthAddress())
+	fmt.Println()
+	fmt.Printf("%20s: %x\n", "Digest", make([]byte, 32))
+	fmt.Printf("%20s: %x\n", "Signature", s.Sign(make([]byte, 32)))
 }
 
 func rcdFields(adr RCDSigner) (rcd []byte, sig []byte, digest []byte) {
