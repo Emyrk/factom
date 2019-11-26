@@ -244,8 +244,7 @@ func (e *Entry) Compose(es EsAddress, newChain bool) (
 	i := 1 // Skip version byte
 
 	// Timestamp in milliseconds.
-	ms := time.Now().Add(time.Duration(-rand.Int63n(int64(1*time.Hour)))).
-		UnixNano() / 1e6
+	ms := time.Now().Unix()*1e3 + rand.Int63n(1000)
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, uint64(ms))
 	i += copy(commit[i:], buf[2:]) // Omit the top 2 bytes.
