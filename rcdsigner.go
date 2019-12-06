@@ -40,6 +40,7 @@ const (
 
 	R_ALL = 1 << iota // Indicates all rcd types are valid
 	R_RCD1
+	R_RCDe
 )
 
 // RCDSigner is the interface implemented by types that can generate Redeem
@@ -69,6 +70,7 @@ func ValidateRCD(rcd, sig, msg []byte, flag int) (Bytes32, error) {
 		mask = mask | R_RCD1
 		validateRCD = ValidateRCD01
 	case RCDType0e:
+		mask = mask | R_RCDe
 		validateRCD = ValidateRCD0e
 	default:
 		return Bytes32{}, fmt.Errorf("unsupported RCD")
