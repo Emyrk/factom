@@ -11,4 +11,5 @@ require (
 	github.com/ethereum/go-ethereum v1.9.9
 	github.com/stretchr/testify v1.4.0
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
+	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 )
