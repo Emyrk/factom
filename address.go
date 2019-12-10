@@ -25,9 +25,9 @@ package factom
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/ed25519"
 	"encoding/hex"
 	"fmt"
 
@@ -55,6 +55,9 @@ type FsAddress [sha256.Size]byte
 //		It is not in a constant.
 type EthSecret [32]byte
 
+// FeAddress is a Public Factoid Address using the rcde.
+type FeAddress [sha256.Size]byte
+
 // ECAddress is a Public Entry Credit Address.
 type ECAddress [sha256.Size]byte
 
@@ -69,6 +72,9 @@ func (adr *FAAddress) payload() *payload {
 func (adr *FsAddress) payload() *payload {
 	return (*payload)(adr)
 }
+func (adr *FeAddress) payload() *payload {
+	return (*payload)(adr)
+}
 func (adr *ECAddress) payload() *payload {
 	return (*payload)(adr)
 }
@@ -81,6 +87,10 @@ var (
 	fsPrefixBytes = [...]byte{0x64, 0x78}
 	ecPrefixBytes = [...]byte{0x59, 0x2a}
 	esPrefixBytes = [...]byte{0x5d, 0xb6}
+
+	// RCD-e prefixes
+	fePrefixBytes = [...]byte{0x62, 0xf4} // Fe...
+	fEPrefixBytes = [...]byte{0x60, 0x28} // FE...
 )
 
 // PrefixBytes returns the two byte prefix for the address type as a byte
@@ -96,6 +106,14 @@ func (FAAddress) PrefixBytes() Bytes {
 // does not depend on the address value. Returns []byte{0x64, 0x78}.
 func (FsAddress) PrefixBytes() Bytes {
 	prefix := fsPrefixBytes
+	return prefix[:]
+}
+
+// PrefixBytes returns the two byte prefix for the address type as a byte
+// slice. Note that the prefix for a given address type is always the same and
+// does not depend on the address value. Returns []byte{0x62, 0xf4}.
+func (FeAddress) PrefixBytes() Bytes {
+	prefix := fePrefixBytes
 	return prefix[:]
 }
 
@@ -118,6 +136,7 @@ func (EsAddress) PrefixBytes() Bytes {
 const (
 	faPrefixStr = "FA"
 	fsPrefixStr = "Fs"
+	fePrefixStr = "Fe"
 	ecPrefixStr = "EC"
 	esPrefixStr = "Es"
 )
@@ -134,6 +153,13 @@ func (FAAddress) PrefixString() string {
 // does not depend on the address value. Returns "Fs".
 func (FsAddress) PrefixString() string {
 	return fsPrefixStr
+}
+
+// PrefixString returns the two prefix bytes for the address type as an encoded
+// string. Note that the prefix for a given address type is always the same and
+// does not depend on the address value. Returns "Fe".
+func (FeAddress) PrefixString() string {
+	return fePrefixStr
 }
 
 // PrefixString returns the two prefix bytes for the address type as an encoded
@@ -164,6 +190,12 @@ func (adr FsAddress) String() string {
 
 // String encodes adr into its human readable form: base58check with
 // adr.PrefixBytes().
+func (adr FeAddress) String() string {
+	return adr.payload().StringWithPrefix(adr.PrefixBytes())
+}
+
+// String encodes adr into its human readable form: base58check with
+// adr.PrefixBytes().
 func (adr EthSecret) String() string {
 	return "0x" + hex.EncodeToString(adr[:])
 }
@@ -187,6 +219,11 @@ func (adr FAAddress) MarshalText() ([]byte, error) {
 
 // MarshalText encodes adr as a string using adr.String().
 func (adr FsAddress) MarshalText() ([]byte, error) {
+	return adr.payload().MarshalTextWithPrefix(adr.PrefixBytes())
+}
+
+// MarshalText encodes adr as a string using adr.String().
+func (adr FeAddress) MarshalText() ([]byte, error) {
 	return adr.payload().MarshalTextWithPrefix(adr.PrefixBytes())
 }
 
@@ -245,6 +282,12 @@ func NewFsAddress(adrStr string) (adr FsAddress, err error) {
 	return
 }
 
+// NewFeAddress attempts to parse adrStr into a new FeAddress.
+func NewFeAddress(adrStr string) (adr FeAddress, err error) {
+	err = adr.Set(adrStr)
+	return
+}
+
 // NewEthSecret attempts to parse adrStr into a new EthSecret.
 func NewEthSecret(adrStr string) (adr EthSecret, err error) {
 	err = adr.Set(adrStr)
@@ -270,6 +313,11 @@ func (adr *FAAddress) Set(adrStr string) error {
 
 // Set attempts to parse adrStr into adr.
 func (adr *FsAddress) Set(adrStr string) error {
+	return adr.payload().SetWithPrefix(adrStr, adr.PrefixString())
+}
+
+// Set attempts to parse adrStr into adr.
+func (adr *FeAddress) Set(adrStr string) error {
 	return adr.payload().SetWithPrefix(adrStr, adr.PrefixString())
 }
 
@@ -316,6 +364,12 @@ func (adr *FsAddress) UnmarshalText(text []byte) error {
 
 // UnmarshalText decodes a string with a human readable secret Factoid address
 // into adr.
+func (adr *FeAddress) UnmarshalText(text []byte) error {
+	return adr.payload().UnmarshalTextWithPrefix(text, adr.PrefixString())
+}
+
+// UnmarshalText decodes a string with a human readable secret Factoid address
+// into adr.
 func (adr *EthSecret) UnmarshalText(text []byte) error {
 	return adr.Set(string(text))
 }
@@ -339,9 +393,10 @@ func (adr FAAddress) GetFsAddress(ctx context.Context, c *Client) (FsAddress, er
 	return privAdr, err
 }
 
-func (adr EthSecret) GetEthSecret(ctx context.Context, c *Client) (EthSecret, error) {
-	panic("Not yet implemented") // TODO: Implement
-	return EthSecret{}, nil
+func (adr FeAddress) GetEthSecret(ctx context.Context, c *Client) (EthSecret, error) {
+	var privAdr EthSecret
+	err := c.getAddress(ctx, adr, &privAdr)
+	return privAdr, err
 }
 
 // GetEsAddress queries factom-walletd for the EsAddress corresponding to adr.
@@ -361,32 +416,41 @@ func (c *Client) getAddress(ctx context.Context, pubAdr, privAdr interface{}) er
 }
 
 // GetPrivateAddresses queries factom-walletd for all private addresses.
-func (c *Client) GetPrivateAddresses(ctx context.Context) ([]FsAddress, []EsAddress,
+func (c *Client) GetPrivateAddresses(ctx context.Context) ([]FsAddress, []EsAddress, []EthSecret,
 	error) {
 	var result struct{ Addresses []struct{ Secret string } }
 	if err := c.WalletdRequest(ctx, "all-addresses", nil, &result); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	fss := make([]FsAddress, 0, len(result.Addresses))
 	ess := make([]EsAddress, 0, len(result.Addresses))
+	eths := make([]EthSecret, 0, len(result.Addresses))
 	for _, adr := range result.Addresses {
 		adrStr := adr.Secret
+		if has0xPrefix(adrStr) {
+			eth, err := NewEthSecret(adrStr)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			eths = append(eths, eth)
+			continue
+		}
 		switch adrStr[:2] {
 		case fsPrefixStr:
 			fs, err := NewFsAddress(adrStr)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			fss = append(fss, fs)
 		case esPrefixStr:
 			es, err := NewEsAddress(adrStr)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			ess = append(ess, es)
 		}
 	}
-	return fss, ess, nil
+	return fss, ess, eths, nil
 }
 
 // Save adr with factom-walletd.
@@ -395,8 +459,7 @@ func (adr FsAddress) Save(ctx context.Context, c *Client) error {
 }
 
 func (adr EthSecret) Save(ctx context.Context, c *Client) error {
-	panic("Not yet implemented") // TODO: Implement
-	return nil
+	return c.SavePrivateAddresses(ctx, adr.String())
 }
 
 // Save adr with factom-walletd.
@@ -424,6 +487,11 @@ func (adr FAAddress) GetBalance(ctx context.Context, c *Client) (uint64, error) 
 
 // GetBalance queries factomd for the Factoid Balance for adr.
 func (adr FsAddress) GetBalance(ctx context.Context, c *Client) (uint64, error) {
+	return adr.FAAddress().GetBalance(ctx, c)
+}
+
+// GetBalance queries factomd for the Factoid Balance for adr.
+func (adr FeAddress) GetBalance(ctx context.Context, c *Client) (uint64, error) {
 	return adr.FAAddress().GetBalance(ctx, c)
 }
 
@@ -494,8 +562,18 @@ func (adr FsAddress) FAAddress() FAAddress {
 }
 
 // FAAddress returns the FAAddress corresponding to adr.
+func (e EthSecret) FeAddress() FeAddress {
+	return sha256d(e.RCD())
+}
+
+// FAAddress returns the FAAddress corresponding to adr.
 func (e EthSecret) FAAddress() FAAddress {
 	return sha256d(e.RCD())
+}
+
+// FAAddress returns the FAAddress corresponding to adr.
+func (e FeAddress) FAAddress() FAAddress {
+	return FAAddress(e)
 }
 
 // ECAddress returns the ECAddress corresponding to adr.

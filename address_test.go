@@ -229,7 +229,7 @@ func TestAddress(t *testing.T) {
 	})
 
 	t.Run("GetPrivateAddresses", func(t *testing.T) {
-		fss, ess, err := c.GetPrivateAddresses(nil)
+		fss, ess, _, err := c.GetPrivateAddresses(nil)
 		assert := assert.New(t)
 		assert.NoError(err)
 		assert.NotEmpty(fss)
