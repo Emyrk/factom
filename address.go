@@ -58,6 +58,9 @@ type EthSecret [32]byte
 // FeAddress is a Public Factoid Address using the rcde.
 type FeAddress [sha256.Size]byte
 
+// FeAddress is a Public Factoid Gateway Address using the rcde.
+type FEGatewayAddress [sha256.Size]byte
+
 // ECAddress is a Public Entry Credit Address.
 type ECAddress [sha256.Size]byte
 
@@ -73,6 +76,9 @@ func (adr *FsAddress) payload() *payload {
 	return (*payload)(adr)
 }
 func (adr *FeAddress) payload() *payload {
+	return (*payload)(adr)
+}
+func (adr *FEGatewayAddress) payload() *payload {
 	return (*payload)(adr)
 }
 func (adr *ECAddress) payload() *payload {
@@ -119,6 +125,14 @@ func (FeAddress) PrefixBytes() Bytes {
 
 // PrefixBytes returns the two byte prefix for the address type as a byte
 // slice. Note that the prefix for a given address type is always the same and
+// does not depend on the address value. Returns []byte{0x60, 0x28}.
+func (FEGatewayAddress) PrefixBytes() Bytes {
+	prefix := fEPrefixBytes
+	return prefix[:]
+}
+
+// PrefixBytes returns the two byte prefix for the address type as a byte
+// slice. Note that the prefix for a given address type is always the same and
 // does not depend on the address value. Returns []byte{0x59, 0x2a}.
 func (ECAddress) PrefixBytes() Bytes {
 	prefix := ecPrefixBytes
@@ -134,11 +148,12 @@ func (EsAddress) PrefixBytes() Bytes {
 }
 
 const (
-	faPrefixStr = "FA"
-	fsPrefixStr = "Fs"
-	fePrefixStr = "Fe"
-	ecPrefixStr = "EC"
-	esPrefixStr = "Es"
+	faPrefixStr        = "FA"
+	fsPrefixStr        = "Fs"
+	fePrefixStr        = "Fe"
+	feGatewayPrefixStr = "FE"
+	ecPrefixStr        = "EC"
+	esPrefixStr        = "Es"
 )
 
 // PrefixString returns the two prefix bytes for the address type as an encoded
@@ -160,6 +175,13 @@ func (FsAddress) PrefixString() string {
 // does not depend on the address value. Returns "Fe".
 func (FeAddress) PrefixString() string {
 	return fePrefixStr
+}
+
+// PrefixString returns the two prefix bytes for the address type as an encoded
+// string. Note that the prefix for a given address type is always the same and
+// does not depend on the address value. Returns "FE".
+func (FEGatewayAddress) PrefixString() string {
+	return feGatewayPrefixStr
 }
 
 // PrefixString returns the two prefix bytes for the address type as an encoded
@@ -196,6 +218,12 @@ func (adr FeAddress) String() string {
 
 // String encodes adr into its human readable form: base58check with
 // adr.PrefixBytes().
+func (adr FEGatewayAddress) String() string {
+	return adr.payload().StringWithPrefix(adr.PrefixBytes())
+}
+
+// String encodes adr into its human readable form: base58check with
+// adr.PrefixBytes().
 func (adr EthSecret) String() string {
 	return "0x" + hex.EncodeToString(adr[:])
 }
@@ -224,6 +252,11 @@ func (adr FsAddress) MarshalText() ([]byte, error) {
 
 // MarshalText encodes adr as a string using adr.String().
 func (adr FeAddress) MarshalText() ([]byte, error) {
+	return adr.payload().MarshalTextWithPrefix(adr.PrefixBytes())
+}
+
+// MarshalText encodes adr as a string using adr.String().
+func (adr FEGatewayAddress) MarshalText() ([]byte, error) {
 	return adr.payload().MarshalTextWithPrefix(adr.PrefixBytes())
 }
 
@@ -288,6 +321,12 @@ func NewFeAddress(adrStr string) (adr FeAddress, err error) {
 	return
 }
 
+// NewFEGatewayAddress attempts to parse adrStr into a new FEGatewayAddress.
+func NewFEGatewayAddress(adrStr string) (adr FEGatewayAddress, err error) {
+	err = adr.Set(adrStr)
+	return
+}
+
 // NewEthSecret attempts to parse adrStr into a new EthSecret.
 func NewEthSecret(adrStr string) (adr EthSecret, err error) {
 	err = adr.Set(adrStr)
@@ -318,6 +357,11 @@ func (adr *FsAddress) Set(adrStr string) error {
 
 // Set attempts to parse adrStr into adr.
 func (adr *FeAddress) Set(adrStr string) error {
+	return adr.payload().SetWithPrefix(adrStr, adr.PrefixString())
+}
+
+// Set attempts to parse adrStr into adr.
+func (adr *FEGatewayAddress) Set(adrStr string) error {
 	return adr.payload().SetWithPrefix(adrStr, adr.PrefixString())
 }
 
@@ -362,9 +406,15 @@ func (adr *FsAddress) UnmarshalText(text []byte) error {
 	return adr.payload().UnmarshalTextWithPrefix(text, adr.PrefixString())
 }
 
-// UnmarshalText decodes a string with a human readable secret Factoid address
-// into adr.
+// UnmarshalText decodes a string with a human readable public Factoid address
+// for rcde into adr.
 func (adr *FeAddress) UnmarshalText(text []byte) error {
+	return adr.payload().UnmarshalTextWithPrefix(text, adr.PrefixString())
+}
+
+// UnmarshalText decodes a string with a human readable public Factoid address
+// for rcde into adr. This adr is a gateway address
+func (adr *FEGatewayAddress) UnmarshalText(text []byte) error {
 	return adr.payload().UnmarshalTextWithPrefix(text, adr.PrefixString())
 }
 
@@ -396,6 +446,12 @@ func (adr FAAddress) GetFsAddress(ctx context.Context, c *Client) (FsAddress, er
 func (adr FeAddress) GetEthSecret(ctx context.Context, c *Client) (EthSecret, error) {
 	var privAdr EthSecret
 	err := c.getAddress(ctx, adr, &privAdr)
+	return privAdr, err
+}
+
+func (adr FEGatewayAddress) GetEthSecret(ctx context.Context, c *Client) (EthSecret, error) {
+	var privAdr EthSecret
+	err := c.getAddress(ctx, FeAddress(adr), &privAdr)
 	return privAdr, err
 }
 
@@ -496,6 +552,11 @@ func (adr FeAddress) GetBalance(ctx context.Context, c *Client) (uint64, error) 
 }
 
 // GetBalance queries factomd for the Factoid Balance for adr.
+func (adr FEGatewayAddress) GetBalance(ctx context.Context, c *Client) (uint64, error) {
+	return adr.FAAddress().GetBalance(ctx, c)
+}
+
+// GetBalance queries factomd for the Factoid Balance for adr.
 func (adr EthSecret) GetBalance(ctx context.Context, c *Client) (uint64, error) {
 	return adr.FAAddress().GetBalance(ctx, c)
 }
@@ -576,6 +637,11 @@ func (e FeAddress) FAAddress() FAAddress {
 	return FAAddress(e)
 }
 
+// FAAddress returns the FAAddress corresponding to adr.
+func (e FEGatewayAddress) FAAddress() FAAddress {
+	return FAAddress(e)
+}
+
 // ECAddress returns the ECAddress corresponding to adr.
 func (adr EsAddress) ECAddress() (ec ECAddress) {
 	copy(ec[:], adr.PublicKey())
@@ -604,11 +670,15 @@ func (adr FsAddress) Sign(msg []byte) []byte {
 
 // Sign the msg.
 func (adr EthSecret) Sign(msg []byte) []byte {
-	sig, err := crypto.Sign(msg, adr.PrivateKey())
+	// Ethereum uses Keccak256Hash to get the digest.
+	// We will use sha256d
+	digest := sha256d(msg)
+	eth, err := crypto.Sign(digest[:], adr.PrivateKey())
 	if err != nil {
 		return nil
 	}
-	return sig
+
+	return eth
 }
 
 // PublicKey returns the ed25519.PublicKey for adr.

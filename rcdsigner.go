@@ -123,13 +123,16 @@ func ValidateRCD0e(rcd []byte, sig []byte, msg []byte) (Bytes32, error) {
 	if rcd[0] != RCDType0e {
 		return Bytes32{}, fmt.Errorf("invalid RCD type")
 	}
+
 	if len(sig) != RCDType0eSigSize {
 		return Bytes32{}, fmt.Errorf("invalid signature size")
 	}
 
-	pubKey := []byte(rcd[1:])                           // Omit RCD Type byte
-	pubKey = append([]byte{0x04}, pubKey...)            // Uncompressed prefix
-	if !crypto.VerifySignature(pubKey, msg, sig[:64]) { // Ignore recovery byte
+	digest := sha256d(msg)
+	pubKey := []byte(rcd[1:])                // Omit RCD Type byte
+	pubKey = append([]byte{0x04}, pubKey...) // Uncompressed prefix
+
+	if !crypto.VerifySignature(pubKey, digest[:], sig[:64]) { // Ignore recovery byte
 		return Bytes32{}, fmt.Errorf("invalid signature")
 	}
 
